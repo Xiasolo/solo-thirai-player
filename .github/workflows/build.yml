@@ -31,6 +31,21 @@ jobs:
           rm -rf test
           cp platform_overrides/android/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           cp platform_overrides/android/MainActivity.kt android/app/src/main/kotlin/com/thirai/thirai_player/MainActivity.kt
+          cat > android/fix_sdk.gradle <<'EOF'
+          subprojects { p ->
+              def fix = {
+                  if (p.name != 'app' && p.extensions.findByName('android') != null) {
+                      p.android.compileSdkVersion 36
+                  }
+              }
+              if (p.state.executed) { fix() } else { p.afterEvaluate { fix() } }
+          }
+          EOF
+          if [ -f android/build.gradle.kts ]; then
+            echo 'apply(from = "fix_sdk.gradle")' >> android/build.gradle.kts
+          else
+            echo "apply from: 'fix_sdk.gradle'" >> android/build.gradle
+          fi
 
       - run: flutter pub get
       - name: Build APK
