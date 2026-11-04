@@ -1,0 +1,26 @@
+name: thirai_player
+description: "Solo Thirai Player - plays every video format (4K to low quality) on Windows and Android, with free-position SRT subtitles."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  media_kit: ^1.1.11
+  media_kit_video: ^1.2.5
+  media_kit_libs_video: ^1.0.5
+  file_picker: ^8.1.2
+  shared_preferences: ^2.3.2
+  window_manager: ^0.4.2
+  desktop_drop: ^0.4.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
