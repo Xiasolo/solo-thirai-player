@@ -12,15 +12,15 @@ dependencies:
   media_kit: ^1.1.11
   media_kit_video: ^1.2.5
   media_kit_libs_video: ^1.0.5
-  file_picker: ^8.1.2
+  file_picker: ^10.0.0
   shared_preferences: ^2.3.2
-  window_manager: ^0.4.2
-  desktop_drop: ^0.4.4
+  window_manager: ^0.5.0
+  desktop_drop: ^0.6.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
+  flutter_lints: ^5.0.0
 
 flutter:
   uses-material-design: true
