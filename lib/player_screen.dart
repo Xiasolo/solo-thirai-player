@@ -66,6 +66,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Timer? osdTimer;
   Offset? doubleTapPos;
 
+  // decoder fallback: hardware -> hardware(copy) -> software
+  static const hwModes = ['auto-safe', 'auto-copy', 'no'];
+  int hwIndex = 0;
+  bool fallingBack = false;
+  String? fatalError;
+  Timer? stuckTimer;
+
   NativePlayer? get native => player.platform is NativePlayer ? player.platform as NativePlayer : null;
 
   @override
@@ -128,7 +135,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
       player.stream.completed.listen((c) {
         if (c) prefs?.remove('resume:${widget.source}');
       }),
-      player.stream.error.listen((e) => _showOsd('Error: $e')),
+      player.stream.error.listen((e) {
+        if (vw == null || vw == 0) {
+          _fallback('Error: $e');
+        } else {
+          _showOsd('Error: $e');
+        }
+      }),
     ]);
 
     if (Platform.isAndroid) {
@@ -138,9 +151,58 @@ class _PlayerScreenState extends State<PlayerScreen> {
       windowManager.setTitle('${widget.title} - Solo Thirai Player');
     }
 
-    await player.open(Media(widget.source));
+    await native?.setProperty('hwdec', hwModes[hwIndex]);
+    await _openMedia();
     await _autoLoadSubtitle();
     _scheduleHide();
+  }
+
+  // ---------- open + decoder fallback (4K / HEVC / 10-bit safety) ----------
+  Future<void> _openMedia() async {
+    if (mounted) setState(() => fatalError = null);
+    vw = null;
+    await player.open(Media(widget.source));
+    stuckTimer?.cancel();
+    final wait = widget.source.contains('://') ? 25 : 10;
+    stuckTimer = Timer(Duration(seconds: wait), _checkStuck);
+  }
+
+  void _checkStuck() {
+    if (!mounted || fatalError != null) return;
+    final hasVideoTrack =
+        player.state.tracks.video.any((t) => t.id != 'auto' && t.id != 'no');
+    final noPicture = vw == null || vw == 0;
+    if (noPicture && (hasVideoTrack || duration == Duration.zero)) {
+      _fallback('Video load aagala (decoder: ${hwModes[hwIndex]})');
+    }
+  }
+
+  Future<void> _fallback(String reason) async {
+    if (fallingBack || !mounted) return;
+    fallingBack = true;
+    try {
+      if (hwIndex < hwModes.length - 1) {
+        hwIndex++;
+        await native?.setProperty('hwdec', hwModes[hwIndex]);
+        setState(() => hwdec = hwModes[hwIndex] != 'no');
+        _showOsd(hwModes[hwIndex] == 'no'
+            ? 'Software decoding-la try pannren...'
+            : 'Vera decoder-la try pannren...');
+        await _openMedia();
+      } else {
+        stuckTimer?.cancel();
+        setState(() => fatalError = reason);
+      }
+    } finally {
+      fallingBack = false;
+    }
+  }
+
+  Future<void> _retryFromStart() async {
+    hwIndex = 0;
+    await native?.setProperty('hwdec', hwModes[0]);
+    setState(() => hwdec = true);
+    await _openMedia();
   }
 
   // ---------- resume ----------
@@ -362,6 +424,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     prefs?.setInt('resume:${widget.source}', position.value.inMilliseconds);
     hideTimer?.cancel();
     osdTimer?.cancel();
+    stuckTimer?.cancel();
     for (final s in _subs) {
       s.cancel();
     }
@@ -443,6 +506,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   ),
                 ),
               ),
+              if (fatalError != null) Positioned.fill(child: _errorView()),
               if (osd != null)
                 Positioned(
                   top: 70,
@@ -462,6 +526,42 @@ class _PlayerScreenState extends State<PlayerScreen> {
             ]);
           }),
         ),
+      ),
+    );
+  }
+
+  Widget _errorView() {
+    return Container(
+      color: Colors.black87,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.all(24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.error_outline, size: 56, color: Colors.redAccent),
+          const SizedBox(height: 12),
+          const Text('Indha video play aagala',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 12),
+          SelectableText(
+            '${widget.title}\n\n$fatalError\n\nPath: ${widget.source}',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.7)),
+          ),
+          const SizedBox(height: 20),
+          Wrap(spacing: 12, children: [
+            FilledButton.icon(
+              onPressed: _retryFromStart,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.maybePop(context),
+              icon: const Icon(Icons.arrow_back),
+              label: const Text('Back'),
+            ),
+          ]),
+        ]),
       ),
     );
   }
@@ -777,7 +877,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
           value: hwdec,
           onChanged: (v) => set(() {
             hwdec = v;
-            native?.setProperty('hwdec', v ? 'auto-safe' : 'no');
+            hwIndex = v ? 0 : hwModes.length - 1;
+            native?.setProperty('hwdec', hwModes[hwIndex]);
           }),
         ),
         const SizedBox(height: 8),

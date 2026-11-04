@@ -106,8 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final r = await FilePicker.platform.pickFiles(
       dialogTitle: 'Open video',
-      type: FileType.custom,
-      allowedExtensions: videoExtensions,
+      type: FileType.any, // every format visible (4K, Blu-ray .m2ts, .mov, .ts ...)
     );
     final path = r?.files.single.path;
     if (path != null) _play(path, baseName(path));

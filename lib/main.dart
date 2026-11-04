@@ -5,6 +5,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'home_screen.dart';
+import 'win_args.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,9 +17,21 @@ Future<void> main(List<String> args) async {
     await windowManager.setMinimumSize(const Size(480, 320));
   }
 
-  // Windows: "Open with Solo Thirai Player" / drag file onto the .exe passes the path here.
-  final initial = args.where((a) => !a.startsWith('-')).toList();
-  runApp(ThiraiApp(initialPath: initial.isNotEmpty ? initial.first : null));
+  // Windows: double-click / "Open with Solo Thirai Player" passes the file path.
+  runApp(ThiraiApp(initialPath: _startupFile(args)));
+}
+
+String? _startupFile(List<String> args) {
+  final all = <String>[...args];
+  if (Platform.isWindows) all.addAll(windowsCommandLineArgs());
+  final candidates = all
+      .map((a) => a.trim().replaceAll('"', ''))
+      .where((a) => a.isNotEmpty && !a.startsWith('-') && !a.toLowerCase().endsWith('.exe'))
+      .toList();
+  for (final c in candidates) {
+    if (c.contains('://') || File(c).existsSync()) return c;
+  }
+  return candidates.isNotEmpty ? candidates.first : null;
 }
 
 class ThiraiApp extends StatelessWidget {
